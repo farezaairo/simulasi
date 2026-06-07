@@ -32,41 +32,27 @@ const quickTopics = [
   { label: "Keselamatan ESD", key: "esd" },
 ];
 
-function getAIResponse(input: string): Promise<string> {
-  return new Promise((resolve) => {
-    const lower = input.toLowerCase();
-    let response = knowledgeBase.default;
+async function getAIResponse(input: string): Promise<string> {
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message: input }),
+    });
 
-    if (lower.includes("cpu") || lower.includes("prosesor") || lower.includes("processor")) {
-      response = knowledgeBase.cpu;
-    } else if (lower.includes("ram") || lower.includes("memori") || lower.includes("memory") || lower.includes("ddr")) {
-      response = knowledgeBase.ram;
-    } else if (lower.includes("gpu") || lower.includes("grafis") || lower.includes("vga") || lower.includes("rtx") || lower.includes("rx")) {
-      response = knowledgeBase.gpu;
-    } else if (lower.includes("ssd") || lower.includes("storage") || lower.includes("nvme") || lower.includes("m.2") || lower.includes("hardisk") || lower.includes("hdd")) {
-      response = knowledgeBase.ssd;
-    } else if (lower.includes("psu") || lower.includes("power supply") || lower.includes("watt") || lower.includes("daya")) {
-      response = knowledgeBase.psu;
-    } else if (lower.includes("thermal") || lower.includes("pasta") || lower.includes("heatsink") || lower.includes("pendingin")) {
-      response = knowledgeBase.thermal;
-    } else if (lower.includes("esd") || lower.includes("statis") || lower.includes("gelang") || lower.includes("keselamatan") || lower.includes("aman")) {
-      response = knowledgeBase.esd;
-    } else if (lower.includes("motherboard") || lower.includes("mobo") || lower.includes("papan induk")) {
-      response = knowledgeBase.motherboard;
-    } else if (lower.includes("urut") || lower.includes("langkah") || lower.includes("cara") || lower.includes("mulai")) {
-      response = knowledgeBase.urutan;
-    } else if (lower.includes("bios") || lower.includes("uefi") || lower.includes("setup") || lower.includes("boot")) {
-      response = knowledgeBase.bios;
-    } else if (lower.includes("halo") || lower.includes("hai") || lower.includes("hello") || lower.includes("hi")) {
-      response = "Halo! 👋 Selamat datang di VLAB PC Assistant! Saya siap membantu Anda belajar merakit komputer. Ada yang ingin ditanyakan?";
-    } else if (lower.includes("terima kasih") || lower.includes("makasih") || lower.includes("thanks")) {
-      response = "Sama-sama! 😊 Semoga penjelasannya membantu. Jangan ragu untuk bertanya lebih lanjut tentang perakitan komputer!";
+    if (!response.ok) {
+      throw new Error("Gagal mendapatkan respons dari server");
     }
 
-    setTimeout(() => resolve(response), 800 + Math.random() * 600);
-  });
+    const data = await response.json();
+    return data.reply;
+  } catch (error) {
+    console.error("Error Chatbot:", error);
+    return "Maaf, sistem AI sedang mengalami gangguan koneksi. Silakan coba sesaat lagi! 🙏";
+  }
 }
-
 function formatMessage(text: string) {
   const parts = text.split(/(\*\*.*?\*\*)/g);
   return parts.map((part, i) => {

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { CheckCircle, RotateCcw, Trophy, Camera, X, Cpu, MemoryStick, HardDrive, Zap, Monitor, Wind, Server, Info } from "lucide-react";
+import { CheckCircle, RotateCcw, Trophy, Camera, X, Cpu, MemoryStick, HardDrive, Zap, Monitor, Wind, Server } from "lucide-react";
 
 interface Component {
   id: string;
@@ -10,7 +10,6 @@ interface Component {
   color: string;
   description: string;
   installTip: string;
-  // Position on motherboard (percentage)
   boardX: number;
   boardY: number;
   boardW: number;
@@ -94,7 +93,6 @@ const correctOrder = ["motherboard", "cpu", "cooler", "ram", "storage", "gpu", "
 
 interface Props { isDark: boolean }
 
-// Realistic motherboard SVG component
 function MotherboardBoard({ installed, nextExpected, dragOver, onDrop, onDragOver, onClick, isDark }: {
   installed: string[];
   nextExpected: string;
@@ -117,24 +115,20 @@ function MotherboardBoard({ installed, nextExpected, dragOver, onDrop, onDragOve
         boxShadow: "0 8px 32px rgba(16,185,129,0.2), inset 0 0 60px rgba(0,0,0,0.4)",
       }}
     >
-      {/* PCB trace lines decoration */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ opacity: 0.3 }}>
         <line x1="0" y1="30%" x2="100%" y2="30%" stroke={traceColor} strokeWidth="1" strokeDasharray="4,8" />
         <line x1="0" y1="60%" x2="100%" y2="60%" stroke={traceColor} strokeWidth="1" strokeDasharray="4,8" />
         <line x1="30%" y1="0" x2="30%" y2="100%" stroke={traceColor} strokeWidth="1" strokeDasharray="4,8" />
         <line x1="65%" y1="0" x2="65%" y2="100%" stroke={traceColor} strokeWidth="1" strokeDasharray="4,8" />
-        {/* Corner mounting holes */}
         {[[4,4],[96,4],[4,96],[96,96]].map(([cx,cy],i) => (
           <circle key={i} cx={`${cx}%`} cy={`${cy}%`} r="6" fill="none" stroke="rgba(16,185,129,0.4)" strokeWidth="1.5" />
         ))}
       </svg>
 
-      {/* Label */}
       <div className="absolute top-2 left-3 text-xs" style={{ color: "rgba(16,185,129,0.6)", fontFamily: "JetBrains Mono, monospace" }}>
         ASUS ROG STRIX Z790-F ATX
       </div>
 
-      {/* Render component slots */}
       {components.slice(1).map((comp) => {
         const isInstalled = installed.includes(comp.id);
         const isNext = comp.id === nextExpected;
@@ -203,7 +197,6 @@ function MotherboardBoard({ installed, nextExpected, dragOver, onDrop, onDragOve
         );
       })}
 
-      {/* Motherboard slot (base) */}
       {!installed.includes("motherboard") && (
         <div
           className="absolute inset-3 rounded-lg flex items-center justify-center cursor-pointer transition-all"
@@ -224,7 +217,6 @@ function MotherboardBoard({ installed, nextExpected, dragOver, onDrop, onDragOve
         </div>
       )}
 
-      {/* Port labels on right side */}
       {installed.includes("motherboard") && (
         <div className="absolute right-1 top-8 flex flex-col gap-1">
           {["USB","ETH","HDMI","DP","USB3"].map(p => (
@@ -235,7 +227,6 @@ function MotherboardBoard({ installed, nextExpected, dragOver, onDrop, onDragOve
         </div>
       )}
 
-      {/* 24-pin ATX label */}
       {installed.includes("motherboard") && (
         <div
           className="absolute right-2 bottom-14 rounded text-center px-1 py-0.5"
@@ -248,23 +239,37 @@ function MotherboardBoard({ installed, nextExpected, dragOver, onDrop, onDragOve
   );
 }
 
-// Camera AR Modal
-function CameraModal({ isDark, onClose }: { isDark: boolean; onClose: () => void }) {
+function CameraModal({ isDark, onClose, onComponentDetected, currentExpectedId }: { 
+  isDark: boolean; 
+  onClose: () => void;
+  onComponentDetected: (id: string) => void;
+  currentExpectedId: string;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  
   const [hasCamera, setHasCamera] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [step, setStep] = useState(0);
   const [detecting, setDetecting] = useState(false);
+  const [geminiResult, setGeminiResult] = useState("");
 
   const steps = [
-    { label: "Siapkan area kerja", detail: "Posisikan kamera di atas meja kerja Anda. Pastikan pencahayaan cukup.", icon: "🔍" },
-    { label: "Pasang Motherboard", detail: "Letakkan motherboard di atas case. Kamera mendeteksi orientasi motherboard.", icon: "🖥️" },
-    { label: "Pasang CPU", detail: "Angkat tuas socket CPU. Pastikan segitiga CPU sejajar dengan socket.", icon: "⚡" },
-    { label: "Pasang RAM", detail: "Buka klip slot RAM. Sejajarkan takikan RAM dengan slot.", icon: "💾" },
-    { label: "Pasang SSD M.2", detail: "Masukkan SSD dengan sudut 30°. Kencangkan baut penahan.", icon: "💿" },
-    { label: "Pasang GPU", detail: "Lepas bracket PCIe. Tekan GPU hingga terdengar klik.", icon: "🎮" },
-    { label: "Hubungkan PSU", detail: "Sambungkan semua konektor daya. Pastikan tidak ada yang longgar.", icon: "🔌" },
+    { id: "motherboard", label: "Pasang Motherboard", detail: "Letakkan motherboard di atas meja kerja atau case komputer Anda.", icon: "🖥️" },
+    { id: "cpu", label: "Pasang CPU", detail: "Siapkan prosesor (CPU) Intel Core i7. Perlihatkan ke kamera sebelum dipasang.", icon: "⚡" },
+    { id: "cooler", label: "Pasang CPU Cooler", detail: "Siapkan heatsink/fan cooler. Pastikan thermal paste sudah siap.", icon: "💨" },
+    { id: "ram", label: "Pasang RAM", detail: "Siapkan kepingan RAM DDR5 Corsair Anda untuk divalidasi.", icon: "💾" },
+    { id: "storage", label: "Pasang SSD M.2", detail: "Pegang SSD NVMe M.2 Anda, pastikan label mereknya terlihat jelas.", icon: "💿" },
+    { id: "gpu", label: "Pasang GPU", detail: "Siapkan kartu grafis (GPU) NVIDIA RTX Anda menghadap ke kamera.", icon: "🎮" },
+    { id: "psu", label: "Hubungkan PSU", detail: "Perlihatkan unit Power Supply (PSU) beserta bundel kabel dayanya.", icon: "🔌" },
   ];
+
+  useEffect(() => {
+    const matchedIndex = steps.findIndex(s => s.id === currentExpectedId);
+    if (matchedIndex !== -1) {
+      setStep(matchedIndex);
+    }
+  }, [currentExpectedId]);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -273,7 +278,7 @@ function CameraModal({ isDark, onClose }: { isDark: boolean; onClose: () => void
         stream = s;
         if (videoRef.current) {
           videoRef.current.srcObject = s;
-          videoRef.current.play();
+          videoRef.current.play().catch(e => console.log("Video play interrupted:", e));
         }
         setHasCamera(true);
       })
@@ -283,12 +288,53 @@ function CameraModal({ isDark, onClose }: { isDark: boolean; onClose: () => void
     return () => { stream?.getTracks().forEach(t => t.stop()); };
   }, []);
 
-  const handleDetect = () => {
+  const handleDetect = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
     setDetecting(true);
-    setTimeout(() => {
+    setGeminiResult("");
+
+    try {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const context = canvas.getContext("2d");
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      if (context) {
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      }
+
+      const imageDataUrl = canvas.toDataURL("image/jpeg");
+      const base64Image = imageDataUrl.split(",")[1];
+
+      const response = await fetch("/api/detect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          image: base64Image,
+          mimeType: "image/jpeg",
+          currentStep: steps[step].label
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.reply) {
+        setGeminiResult(data.reply);
+        if (data.reply.toUpperCase().includes("COCOK")) {
+          onComponentDetected(steps[step].id);
+        }
+      } else {
+        setGeminiResult("⚠️ Gagal menganalisis gambar.");
+      }
+    } catch (err) {
+      console.error("Fetch Error:", err);
+      setGeminiResult("⚠️ Terjadi gangguan jaringan pada sistem AI.");
+    } finally {
       setDetecting(false);
-      setStep(s => Math.min(s + 1, steps.length - 1));
-    }, 2000);
+    }
   };
 
   const bg = isDark ? "#0f172a" : "#ffffff";
@@ -305,60 +351,62 @@ function CameraModal({ isDark, onClose }: { isDark: boolean; onClose: () => void
         className="w-full max-w-4xl rounded-2xl overflow-hidden"
         style={{ background: bg, border: `1px solid ${border}` }}
       >
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${border}` }}>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, #3b82f6, #8b5cf6)" }}>
               <Camera size={16} color="#ffffff" />
             </div>
             <div>
-              <div style={{ color: text, fontFamily: "Rajdhani, sans-serif", fontWeight: 700, fontSize: "1.1rem" }}>
-                Simulasi Langsung dengan Kamera
+              <div style={{ text, fontFamily: "Rajdhani, sans-serif", fontWeight: 700, fontSize: "1.1rem" }}>
+                Simulasi Verifikasi Perangkat Keras (Gemini AI)
               </div>
               <div style={{ color: textSec, fontSize: "0.78rem", fontFamily: "Inter, sans-serif" }}>
-                AI mendeteksi komponen dan memberikan panduan real-time
+                Arahkan kamera fisik Anda pada perangkat untuk pencocokan otomatis
               </div>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg"
-            style={{ color: textSec, background: cardBg }}
-          >
+          <button onClick={onClose} className="p-2 rounded-lg" style={{ color: textSec, background: cardBg }}>
             <X size={20} />
           </button>
         </div>
 
         <div className="grid md:grid-cols-2 gap-0">
-          {/* Camera feed */}
-          <div className="relative" style={{ background: "#000000", minHeight: "280px" }}>
+          <div className="relative" style={{ background: "#000000", minHeight: "340px" }}>
             {hasCamera ? (
               <>
                 <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                {/* AR overlay */}
+                <canvas ref={canvasRef} className="hidden" />
+                
                 <div className="absolute inset-0 pointer-events-none">
-                  <div className="absolute inset-4 rounded-lg" style={{ border: "2px dashed rgba(59,130,246,0.5)" }} />
+                  <div className="absolute inset-8 rounded-lg" style={{ border: "2px dashed rgba(59,130,246,0.4)" }} />
                   <div className="absolute top-2 left-2 px-2 py-1 rounded text-xs" style={{ background: "rgba(59,130,246,0.8)", color: "#ffffff", fontFamily: "JetBrains Mono, monospace" }}>
-                    {detecting ? "🔍 MENDETEKSI..." : "📷 LIVE"}
+                    {detecting ? "🔍 MENGECEK DENGAN GEMINI..." : "📷 CAMERA ACTIVE"}
                   </div>
-                  {detecting && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-16 h-16 rounded-full border-4 border-blue-400 border-t-transparent animate-spin" />
+
+                  {geminiResult && (
+                    <div className="absolute top-12 inset-x-4 p-3 rounded-xl text-xs text-white bg-black/85 border border-zinc-800 backdrop-blur-md pointer-events-auto">
+                      {geminiResult}
                     </div>
                   )}
-                  {/* Corner markers */}
+
+                  {detecting && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-14 h-14 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
+                    </div>
+                  )}
                   {[["top-3 left-3","border-t-2 border-l-2"],["top-3 right-3","border-t-2 border-r-2"],["bottom-3 left-3","border-b-2 border-l-2"],["bottom-3 right-3","border-b-2 border-r-2"]].map(([pos, cls], i) => (
                     <div key={i} className={`absolute w-5 h-5 ${pos} ${cls}`} style={{ borderColor: "rgba(59,130,246,0.8)" }} />
                   ))}
                 </div>
+                
                 <div className="absolute bottom-3 inset-x-3">
                   <button
                     onClick={handleDetect}
                     disabled={detecting}
-                    className="w-full py-2 rounded-lg text-sm transition-all"
-                    style={{ background: detecting ? "rgba(59,130,246,0.4)" : "rgba(59,130,246,0.9)", color: "#ffffff", fontFamily: "Rajdhani, sans-serif", fontWeight: 700 }}
+                    className="w-full py-2.5 rounded-xl text-sm transition-all"
+                    style={{ background: detecting ? "rgba(59,130,246,0.4)" : "linear-gradient(135deg, #3b82f6, #8b5cf6)", color: "#ffffff", fontFamily: "Rajdhani, sans-serif", fontWeight: 700 }}
                   >
-                    {detecting ? "Menganalisis..." : "🔍 Deteksi Komponen"}
+                    {detecting ? "Memproses Analisis AI..." : "📸 Ambil Foto & Verifikasi Komponen"}
                   </button>
                 </div>
               </>
@@ -366,9 +414,6 @@ function CameraModal({ isDark, onClose }: { isDark: boolean; onClose: () => void
               <div className="flex flex-col items-center justify-center h-full p-6 text-center gap-3">
                 <Camera size={48} color="#64748b" />
                 <p style={{ color: "#ef4444", fontSize: "0.88rem", fontFamily: "Inter, sans-serif" }}>{cameraError}</p>
-                <p style={{ color: "#64748b", fontSize: "0.8rem", fontFamily: "Inter, sans-serif" }}>
-                  Fitur ini membutuhkan akses kamera. Anda tetap bisa mengikuti panduan di sebelah kanan.
-                </p>
               </div>
             ) : (
               <div className="flex items-center justify-center h-full">
@@ -377,10 +422,9 @@ function CameraModal({ isDark, onClose }: { isDark: boolean; onClose: () => void
             )}
           </div>
 
-          {/* Step guide */}
           <div className="p-5 overflow-y-auto" style={{ maxHeight: "400px" }}>
-            <h4 className="mb-4" style={{ color: text, fontFamily: "Rajdhani, sans-serif" }}>
-              Panduan Langkah ({step + 1}/{steps.length})
+            <h4 className="mb-4" style={{ color: text, fontFamily: "Rajdhani, sans-serif", fontWeight: 700 }}>
+              Kebutuhan Komponen Saat Ini ({step + 1}/{steps.length})
             </h4>
             <div className="space-y-2">
               {steps.map((s, i) => {
@@ -415,13 +459,6 @@ function CameraModal({ isDark, onClose }: { isDark: boolean; onClose: () => void
                 );
               })}
             </div>
-            {step === steps.length - 1 && (
-              <div className="mt-4 p-3 rounded-xl text-center" style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.3)" }}>
-                <div style={{ color: "#10b981", fontFamily: "Rajdhani, sans-serif", fontWeight: 700 }}>
-                  🎉 Semua langkah selesai!
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </motion.div>
@@ -438,7 +475,6 @@ export function SimulationSection({ isDark }: Props) {
   const [showCamera, setShowCamera] = useState(false);
   const [selectedComp, setSelectedComp] = useState<string | null>(null);
 
-  const bg = isDark ? "#0f172a" : "#ffffff";
   const cardBg = isDark ? "#1e293b" : "#f8fafc";
   const textPrimary = isDark ? "#f1f5f9" : "#1e293b";
   const textSecondary = isDark ? "#94a3b8" : "#64748b";
@@ -446,7 +482,7 @@ export function SimulationSection({ isDark }: Props) {
 
   const nextExpected = correctOrder[installed.length];
 
-  const handleDragStart = (e: React.DragEvent, id: string) => {
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, id: string) => {
     e.dataTransfer.setData("componentId", id);
   };
 
@@ -494,7 +530,6 @@ export function SimulationSection({ isDark }: Props) {
 
   return (
     <section id="simulasi" className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-      {/* Header */}
       <div className="mb-10 text-center">
         <h2 style={{ color: textPrimary }}>Simulasi Perakitan Komputer</h2>
         <p className="mt-3 max-w-2xl mx-auto" style={{ color: textSecondary, fontFamily: "Inter, sans-serif" }}>
@@ -552,7 +587,6 @@ export function SimulationSection({ isDark }: Props) {
           </motion.div>
         ) : (
           <div className="grid lg:grid-cols-5 gap-6">
-            {/* Left: Component list */}
             <div className="lg:col-span-2 space-y-4">
               <div className="rounded-2xl p-4" style={{ background: cardBg, border: `1px solid ${borderBase}` }}>
                 <div className="flex items-center justify-between mb-3">
@@ -571,14 +605,13 @@ export function SimulationSection({ isDark }: Props) {
                     const isInstalled = installed.includes(comp.id);
                     const isWrong = wrongAttempt === comp.id;
                     const isNext = comp.id === nextExpected;
-                    const isSelected = selectedComp === comp.id;
 
                     return (
                       <motion.div
                         key={comp.id}
                         draggable={!isInstalled}
-                        onDragStart={(e) => !isInstalled && handleDragStart(e as unknown as React.DragEvent, comp.id)}
-                        onClick={() => { !isInstalled && installComponent(comp.id); setSelectedComp(comp.id); }}
+                        onDragStart={(e) => !isInstalled && handleDragStart(e, comp.id)}
+                        onClick={() => { !isInstalled && installComponent(comp.id); }}
                         animate={isWrong ? { x: [-6, 6, -6, 6, 0] } : {}}
                         transition={{ duration: 0.3 }}
                         className="flex items-center gap-3 p-3 rounded-xl transition-all"
@@ -620,7 +653,6 @@ export function SimulationSection({ isDark }: Props) {
                 </div>
               </div>
 
-              {/* Progress */}
               <div className="p-4 rounded-xl" style={{ background: cardBg, border: `1px solid ${borderBase}` }}>
                 <div className="flex justify-between items-center mb-2">
                   <span style={{ color: textSecondary, fontSize: "0.82rem", fontFamily: "Inter, sans-serif" }}>Progres Perakitan</span>
@@ -637,9 +669,18 @@ export function SimulationSection({ isDark }: Props) {
                   />
                 </div>
               </div>
+
+              {feedback && (
+                <div className="p-3 text-xs rounded-xl border" style={{ 
+                  backgroundColor: feedback.startsWith("✅") ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)",
+                  borderColor: feedback.startsWith("✅") ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.3)",
+                  color: feedback.startsWith("✅") ? "#10b981" : "#ef4444"
+                }}>
+                  {feedback}
+                </div>
+              )}
             </div>
 
-            {/* Right: 3D Motherboard */}
             <div className="lg:col-span-3 space-y-3">
               <div className="p-5 rounded-2xl" style={{ background: cardBg, border: `1px solid ${borderBase}` }}>
                 <div className="flex items-center justify-between mb-4">
@@ -651,20 +692,8 @@ export function SimulationSection({ isDark }: Props) {
                   </div>
                 </div>
 
-                {/* 3D perspective wrapper */}
-                <div
-                  style={{
-                    perspective: "800px",
-                    perspectiveOrigin: "50% 40%",
-                  }}
-                >
-                  <div
-                    style={{
-                      transform: "rotateX(8deg) rotateY(-3deg)",
-                      transformStyle: "preserve-3d",
-                      transition: "transform 0.3s",
-                    }}
-                  >
+                <div style={{ perspective: "800px", perspectiveOrigin: "50% 40%" }}>
+                  <div style={{ transform: "rotateX(8deg) rotateY(-3deg)", transformStyle: "preserve-3d", transition: "transform 0.3s" }}>
                     <MotherboardBoard
                       installed={installed}
                       nextExpected={nextExpected}
@@ -674,53 +703,28 @@ export function SimulationSection({ isDark }: Props) {
                       onClick={installComponent}
                       isDark={isDark}
                     />
-                    {/* Shadow/base effect */}
-                    <div
-                      style={{
-                        height: "8px",
-                        background: "rgba(0,0,0,0.3)",
-                        filter: "blur(8px)",
-                        marginTop: "-4px",
-                        transform: "scaleY(0.3)",
-                        borderRadius: "50%",
-                      }}
-                    />
                   </div>
                 </div>
               </div>
-
-              {/* Feedback */}
-              <AnimatePresence>
-                {feedback && (
-                  <motion.div
-                    key={feedback}
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    className="p-3 rounded-xl flex items-start gap-2"
-                    style={{
-                      background: feedback.startsWith("✅")
-                        ? (isDark ? "rgba(16,185,129,0.15)" : "#dcfce7")
-                        : (isDark ? "rgba(239,68,68,0.15)" : "#fee2e2"),
-                      border: `1px solid ${feedback.startsWith("✅") ? "rgba(16,185,129,0.4)" : "rgba(239,68,68,0.4)"}`,
-                      color: feedback.startsWith("✅") ? "#10b981" : "#ef4444",
-                      fontFamily: "Inter, sans-serif",
-                      fontSize: "0.88rem",
-                    }}
-                  >
-                    <Info size={16} className="shrink-0 mt-0.5" />
-                    {feedback}
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
           </div>
         )}
       </AnimatePresence>
 
-      {/* Camera Modal */}
+      {/* Render CameraModal di sini jika state showCamera bernilai true */}
       {showCamera && (
-        <CameraModal isDark={isDark} onClose={() => setShowCamera(false)} />
+        <CameraModal 
+          isDark={isDark} 
+          onClose={() => setShowCamera(false)} 
+          onComponentDetected={(id) => {
+            installComponent(id);
+            // Tutup modal jika komponen terakhir telah terdeteksi/terpasang
+            if(id === correctOrder[correctOrder.length - 1]) {
+              setShowCamera(false);
+            }
+          }}
+          currentExpectedId={nextExpected}
+        />
       )}
     </section>
   );
