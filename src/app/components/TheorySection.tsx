@@ -102,7 +102,7 @@ const modules = [
     icon: Server,
     color: "#8b5cf6",
     title: "Motherboard",
-    src: "/videos/motherboard.mp4"
+    src: "/videos/motherboard.mp4",
     subtitle: "Papan Induk — Penghubung Semua Komponen",
     videoId: "BL4DCEp7blY",
     content: [
