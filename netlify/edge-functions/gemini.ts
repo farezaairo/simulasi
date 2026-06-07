@@ -1,52 +1,57 @@
-import { GoogleGenAI } from "https://esm.sh/@google/genai";
+import { GoogleGenAI } from "https://esm.sh/@google/genai@0.1.1";
 
 export default async (request: Request) => {
-  // 1. Validasi Method
-  if (request.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
   try {
-    // 2. AMBIL DATA JSON SECARA BENAR (Sesuai dengan kiriman dari ChatbotSection.tsx)
-    const data = await request.json();
-    const userMessage = data.message; // Mengekstrak isi teks chat
+    // 1. Ambil pesan dari frontend
+    const { message } = await request.json();
 
-    if (!userMessage) {
-      return new Response(JSON.stringify({ error: "Pesan kosong" }), { status: 400 });
-    }
-
-    // 3. Ambil API Key dari Environment Variable Netlify
-    const apiKey = Netlify.env.get("GEMINI_API_KEY");
+    // 2. Ambil API Key dari Environment Variables Netlify
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: "API Key belum diatur di Netlify" }), { status: 500 });
+      return new Response(
+        JSON.stringify({ error: "API Key belum dikonfigurasi di Netlify Baru." }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
     }
 
-    // 4. Inisialisasi Gemini SDK
+    // 3. Inisialisasi Google Gen AI SDK
     const ai = new GoogleGenAI({ apiKey });
-    
-    // 5. Panggil Model Gemini
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: userMessage,
-      config: {
-        systemInstruction: "Anda adalah VLAB AI Assistant, ahli perakitan komputer yang ramah. Jawab pertanyaan pengguna dengan singkat, jelas, terstruktur, dan gunakan emoji jika relevan.",
-      }
-    });
 
-    // 6. Kembalikan respons dalam bentuk objek JSON (Supaya dibaca oleh data.reply di frontend)
-    return new Response(JSON.stringify({ reply: response.text }), {
-      headers: { 
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*" // Menghindari isu CORS
+    // 4. Panggil model Gemini dengan instruksi karakter agar tidak kaku seperti bot biasa
+    const response = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: message,
+      config: {
+        // TATA BAHASA & KARAKTER AI DIATUR DI SINI AGAR HIDUP DAN INTERAKTIF
+        systemInstruction: `
+          Anda adalah VLAB AI Assistant (Asisten Pintar Laboratorium Virtual Perakitan PC).
+          Gaya bicara Anda harus ramah, interaktif, edukatif, dan menggunakan bahasa Indonesia yang santai tapi sopan (hindari gaya bahasa yang terlalu kaku seperti kamus).
+          
+          Aturan menjawab:
+          1. Gunakan emoji yang relevan agar chat terasa hidup dan menarik.
+          2. Jika user bertanya cara pasang komponen, berikan langkah-langkah yang jelas, mudah dipahami, dan beri tips rahasia/peringatan keamanannya.
+          3. Gunakan format cetak tebal dengan tanda bintang dua (**teks**) pada kata-kata penting/nama komponen agar frontend bisa menyorot teks tersebut dengan warna khusus secara otomatis.
+          4. Jangan menjawab terlalu singkat, berikan penjelasan tambahan atau tawarkan bantuan berikutnya di akhir kalimat agar terjadi percakapan yang interaktif.
+        `,
+        temperature: 0.7, // Membuat variasi jawaban lebih kreatif dan natural
       },
     });
 
-  } catch (error: any) {
-    console.error("Error Edge Function:", error);
-    return new Response(JSON.stringify({ error: error.message }), { 
-      status: 500,
-      headers: { "Content-Type": "application/json" }
-    });
+    // 5. Ambil teks hasil generate
+    const replyText = response.text || "Wah, maaf ya, saya agak bingung dengan pertanyaannya. Bisa dijelaskan kembali? 😊";
+
+    // 6. Kirim kembali respons ke frontend
+    return new Response(
+      JSON.stringify({ reply: replyText }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+
+  } catch (error) {
+    console.error("Error pada Edge Function Gemini:", error);
+    return new Response(
+      JSON.stringify({ error: "Aduh, sistem AI sedang mengalami kendala koneksi nih. Coba lagi ya!" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
   }
 };
 

@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "https://esm.sh/@google/genai";
+import { GoogleGenAI } from "https://esm.sh/@google/genai@0.1.1";
 
 export default async (request: Request) => {
   // Hanya ijinkan method POST
@@ -14,17 +14,17 @@ export default async (request: Request) => {
       return new Response(JSON.stringify({ error: "Gambar tidak ditemukan" }), { status: 400 });
     }
 
-    // Mengambil API Key dari Environment Variable Netlify
-    const apiKey = Netlify.env.get("GEMINI_API_KEY");
+    // MENGGUNAKAN SINTAKS DENO YANG BENAR UNTUK EDGE FUNCTIONS
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: "API Key belum diatur di Netlify" }), { status: 500 });
+      return new Response(JSON.stringify({ error: "API Key belum diatur di Netlify Baru." }), { status: 500 });
     }
 
     const ai = new GoogleGenAI({ apiKey });
     
-    // Panggil model Gemini 2.5 Flash dengan struktur multimodal (Teks + Gambar)
+    // Panggil model Gemini 1.5 Flash (Versi Multimodal yang stabil untuk Teks + Gambar)
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-1.5-flash',
       contents: [
         {
           // Bagian ini memberi tahu Gemini kalau ada data gambar masuk berbentuk Base64

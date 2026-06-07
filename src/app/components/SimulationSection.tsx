@@ -273,19 +273,36 @@ function CameraModal({ isDark, onClose, onComponentDetected, currentExpectedId }
 
   useEffect(() => {
     let stream: MediaStream | null = null;
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-      .then((s) => {
-        stream = s;
-        if (videoRef.current) {
-          videoRef.current.srcObject = s;
-          videoRef.current.play().catch(e => console.log("Video play interrupted:", e));
-        }
-        setHasCamera(true);
-      })
-      .catch(() => {
-        setCameraError("Kamera tidak dapat diakses. Pastikan izin kamera diaktifkan di browser Anda.");
-      });
-    return () => { stream?.getTracks().forEach(t => t.stop()); };
+    
+    // PERBAIKAN UTAMA: Penambahan resolusi ideal agar kamera terpaksa me-render piksel gambar secara nyata
+    navigator.mediaDevices.getUserMedia({ 
+      video: { 
+        facingMode: "environment",
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      } 
+    })
+    .then((s) => {
+      stream = s;
+      if (videoRef.current) {
+        videoRef.current.srcObject = s;
+        // Memicu paksa render data setelah loadedmetadata siap
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().catch(e => console.log("Video play interrupted:", e));
+        };
+      }
+      setHasCamera(true);
+    })
+    .catch((err) => {
+      console.error("Camera access error:", err);
+      setCameraError("Kamera tidak dapat diakses. Pastikan izin kamera diaktifkan di browser Anda.");
+    });
+
+    return () => { 
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop()); 
+      }
+    };
   }, []);
 
   const handleDetect = async () => {
@@ -299,14 +316,15 @@ function CameraModal({ isDark, onClose, onComponentDetected, currentExpectedId }
       const canvas = canvasRef.current;
       const context = canvas.getContext("2d");
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      // Menyesuaikan ukuran tangkapan sesuai rasio fisik kamera aktual
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
 
       if (context) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
       }
 
-      const imageDataUrl = canvas.toDataURL("image/jpeg");
+      const imageDataUrl = canvas.toDataURL("image/jpeg", 0.85);
       const base64Image = imageDataUrl.split(",")[1];
 
       const response = await fetch("/api/detect", {
@@ -371,10 +389,19 @@ function CameraModal({ isDark, onClose, onComponentDetected, currentExpectedId }
         </div>
 
         <div className="grid md:grid-cols-2 gap-0">
-          <div className="relative" style={{ background: "#000000", minHeight: "340px" }}>
+          {/* PERBAIKAN UTAMA: Mengatur kontainer kamera agar meregang tinggi aslinya secara fleksibel minimum 380px */}
+          <div className="relative flex flex-col justify-between" style={{ background: "#000000", minHeight: "380px", height: "auto" }}>
             {hasCamera ? (
-              <>
-                <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+              <div className="relative w-full h-full flex flex-col flex-1 justify-between p-3">
+                {/* PERBAIKAN UTAMA: Memastikan video dipaksa memiliki tinggi minimal pengisi elemen blok */}
+                <video 
+                  ref={videoRef} 
+                  className="absolute inset-0 w-full h-full object-cover" 
+                  autoPlay 
+                  muted 
+                  playsInline 
+                  style={{ minHeight: "380px" }}
+                />
                 <canvas ref={canvasRef} className="hidden" />
                 
                 <div className="absolute inset-0 pointer-events-none">
@@ -390,7 +417,7 @@ function CameraModal({ isDark, onClose, onComponentDetected, currentExpectedId }
                   )}
 
                   {detecting && (
-                    <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
                       <div className="w-14 h-14 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
                     </div>
                   )}
@@ -399,24 +426,24 @@ function CameraModal({ isDark, onClose, onComponentDetected, currentExpectedId }
                   ))}
                 </div>
                 
-                <div className="absolute bottom-3 inset-x-3">
+                <div className="mt-auto relative z-10 w-full pt-20">
                   <button
                     onClick={handleDetect}
                     disabled={detecting}
-                    className="w-full py-2.5 rounded-xl text-sm transition-all"
+                    className="w-full py-2.5 rounded-xl text-sm transition-all shadow-lg active:scale-95"
                     style={{ background: detecting ? "rgba(59,130,246,0.4)" : "linear-gradient(135deg, #3b82f6, #8b5cf6)", color: "#ffffff", fontFamily: "Rajdhani, sans-serif", fontWeight: 700 }}
                   >
                     {detecting ? "Memproses Analisis AI..." : "📸 Ambil Foto & Verifikasi Komponen"}
                   </button>
                 </div>
-              </>
+              </div>
             ) : cameraError ? (
-              <div className="flex flex-col items-center justify-center h-full p-6 text-center gap-3">
+              <div className="flex flex-col items-center justify-center h-full p-6 text-center gap-3 flex-1">
                 <Camera size={48} color="#64748b" />
                 <p style={{ color: "#ef4444", fontSize: "0.88rem", fontFamily: "Inter, sans-serif" }}>{cameraError}</p>
               </div>
             ) : (
-              <div className="flex items-center justify-center h-full">
+              <div className="flex items-center justify-center h-full flex-1" style={{ minHeight: "380px" }}>
                 <div className="w-8 h-8 rounded-full border-3 border-blue-400 border-t-transparent animate-spin" />
               </div>
             )}
@@ -435,7 +462,7 @@ function CameraModal({ isDark, onClose, onComponentDetected, currentExpectedId }
                     key={i}
                     className="flex gap-3 p-3 rounded-xl transition-all"
                     style={{
-                      background: isActive ? "rgba(59,130,246,0.1)" : isDone ? "rgba(16,185,129,0.08)" : "transparent",
+                      background: isActive ? "rgba(59,130,246,0.1)" : "isDone ? 'rgba(16,185,129,0.08)' : 'transparent'",
                       border: isActive ? "1px solid rgba(59,130,246,0.4)" : isDone ? "1px solid rgba(16,185,129,0.3)" : `1px solid ${border}`,
                     }}
                   >
@@ -711,14 +738,12 @@ export function SimulationSection({ isDark }: Props) {
         )}
       </AnimatePresence>
 
-      {/* Render CameraModal di sini jika state showCamera bernilai true */}
       {showCamera && (
         <CameraModal 
           isDark={isDark} 
           onClose={() => setShowCamera(false)} 
           onComponentDetected={(id) => {
             installComponent(id);
-            // Tutup modal jika komponen terakhir telah terdeteksi/terpasang
             if(id === correctOrder[correctOrder.length - 1]) {
               setShowCamera(false);
             }
