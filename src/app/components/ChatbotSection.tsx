@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion"; // Pastikan impor sesuai package.json Anda (framer-motion atau motion/react)
 import { Send, Bot, User, Cpu, Loader2, Sparkles } from "lucide-react";
 
 interface Message {
@@ -43,17 +43,29 @@ async function getAIResponse(input: string): Promise<string> {
     });
 
     if (!response.ok) {
-      throw new Error("Gagal mendapatkan respons dari server");
+      throw new Error(`Server returned status ${response.status}`);
     }
 
     const data = await response.json();
-    return data.reply;
+    
+    // Validasi respons AI agar tidak merusak formatting text
+    if (data && typeof data.reply === "string" && data.reply.trim() !== "") {
+      return data.reply;
+    }
+    
+    if (data && data.error) {
+      return `Error: ${data.error}`;
+    }
+
+    return "Maaf, sistem tidak menerima jawaban yang valid dari AI.";
   } catch (error) {
     console.error("Error Chatbot:", error);
-    return "Maaf, sistem AI sedang mengalami gangguan koneksi. Silakan coba sesaat lagi! 🙏";
+    return "Maaf, sistem AI sedang mengalami gangguan koneksi ke server Netlify. Silakan coba sesaat lagi! 🙏";
   }
 }
+
 function formatMessage(text: string) {
+  if (!text) return "";
   const parts = text.split(/(\*\*.*?\*\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
@@ -303,8 +315,6 @@ export function ChatbotSection() {
                 fontFamily: "Inter, sans-serif",
                 fontSize: "0.9rem",
               }}
-              onFocus={(e) => { e.target.style.borderColor = "rgba(124,58,237,0.6)"; }}
-              onBlur={(e) => { e.target.style.borderColor = "rgba(124,58,237,0.25)"; }}
             />
             <button
               type="submit"
