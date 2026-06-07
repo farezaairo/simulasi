@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "npm:@google/genai";
+import { GoogleGenAI } from "https://esm.sh/@google/genai";
 
 export default async (request: Request) => {
   // 1. Validasi Method
