@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "https://esm.sh/@google/genai@0.1.1";
+import { GoogleGenAI } from "https://esm.sh/@google/genai";
 
 export default async (request: Request) => {
   // Hanya ijinkan method POST
