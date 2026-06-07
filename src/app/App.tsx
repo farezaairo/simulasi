@@ -158,7 +158,7 @@ export default function App() {
               Media Pembelajaran Interaktif
             </div>
             <div style={{ color: footerText, fontSize: "0.75rem", fontFamily: "JetBrains Mono, monospace" }}>
-              © 2024 Piranti
+              © 2026 Piranti
             </div>
           </div>
         </div>
